@@ -1,6 +1,4 @@
 <?php
-session_start();
-unset($_SESSION['user']);
-header("Location: index.php");
-exit;
-?>
+logout_user();
+flash('success', 'You have been signed out.');
+redirect('index.php');

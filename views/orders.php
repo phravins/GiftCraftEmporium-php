@@ -1,71 +1,49 @@
 <?php
-if (!isset($_SESSION['user'])) {
-    header("Location: index.php?page=login");
-    exit;
-}
+$page_title = 'My orders';
 
-$db = Database::getConnection();
-$user_id = $_SESSION['user']['id'];
+$countStmt = db()->prepare('SELECT COUNT(*) FROM orders WHERE buyer_id = ?');
+$countStmt->execute([$user['id']]);
+$pg = paginate((int) $countStmt->fetchColumn(), 10, query_int('p', 1));
 
-$orders = $db->query("SELECT * FROM orders WHERE user_id = $user_id ORDER BY created_at DESC")->fetchAll();
-
-function getOrderItems($db, $order_id) {
-    $stmt = $db->prepare("SELECT oi.*, p.name FROM order_items oi JOIN products p ON oi.product_id = p.id WHERE order_id = ?");
-    $stmt->execute([$order_id]);
-    return $stmt->fetchAll();
-}
+$stmt = db()->prepare('SELECT * FROM orders WHERE buyer_id = ? ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?');
+$stmt->execute([$user['id'], $pg['per_page'], $pg['offset']]);
+$orders = $stmt->fetchAll();
+$packages = packages_for_orders(array_column($orders, 'id'));
 ?>
 
-<div class="max-w-4xl mx-auto">
-    <h1 class="text-3xl font-extrabold mb-8 text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600">My Orders</h1>
-    
-    <?php if (isset($_GET['msg'])): ?>
-        <div class="bg-green-100 text-green-800 p-4 rounded-lg mb-6 shadow-sm border border-green-200">
-            <?= htmlspecialchars($_GET['msg']) ?>
-        </div>
+<h1 class="page-title">My orders</h1>
+<p class="mt-2 text-sm text-stone-500">Track packages, cancel before they ship and review delivered gifts.</p>
+
+<div class="mt-8 space-y-5">
+    <?php if (!$orders): ?>
+        <?php empty_state('clipboard', 'No orders yet', 'When you place an order, you can follow every package from here.',
+            '<a href="' . e(url('shop')) . '" class="btn btn-primary">Start shopping</a>'); ?>
     <?php endif; ?>
 
-    <?php if (empty($orders)): ?>
-        <div class="text-center py-12 bg-white rounded-xl shadow-sm">
-            <p class="text-gray-500 text-lg mb-4">You haven't placed any orders yet.</p>
-            <a href="index.php" class="text-indigo-600 font-bold hover:underline">Start Shopping</a>
-        </div>
-    <?php else: ?>
-        <div class="space-y-6">
-            <?php foreach ($orders as $order): ?>
-            <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition">
-                <div class="flex justify-between items-center mb-4 border-b pb-4">
-                    <div>
-                        <span class="font-bold text-lg text-gray-800">Order #<?= $order['id'] ?></span>
-                        <span class="text-sm text-gray-500 ml-2 block sm:inline"><?= date('M d, Y', strtotime($order['created_at'])) ?></span>
-                    </div>
-                    <div>
-                        <span class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide
-                            <?= $order['status'] == 'completed' ? 'bg-green-100 text-green-800' : 
-                                ($order['status'] == 'dispatched' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800') ?>">
-                            <?= ucfirst($order['status']) ?>
-                        </span>
-                    </div>
+    <?php foreach ($orders as $order):
+        $orderPackages = $packages[(int) $order['id']] ?? [];
+        $status = overall_order_status(array_column($orderPackages, 'status'));
+        $items = array_merge(...array_map(fn($p) => $p['items'], $orderPackages ?: [['items' => []]])); ?>
+        <a href="<?= e(url('order', ['id' => $order['id']])) ?>" class="card block p-5 transition hover:shadow-md sm:p-6">
+            <div class="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                    <p class="font-semibold text-stone-900">Order <?= e($order['order_number']) ?></p>
+                    <p class="mt-0.5 text-sm text-stone-500">Placed <?= e(fmt_date($order['created_at'])) ?> · <?= plural(count($orderPackages), 'package') ?></p>
                 </div>
-                
-                <div class="mb-4 bg-gray-50 p-4 rounded-lg">
-                    <h4 class="font-bold text-gray-700 text-sm mb-2 uppercase tracking-wide">Items</h4>
-                    <ul class="space-y-2 text-gray-600">
-                        <?php foreach (getOrderItems($db, $order['id']) as $item): ?>
-                            <li class="flex justify-between">
-                                <span><?= htmlspecialchars($item['name']) ?> <span class="text-gray-400">x<?= $item['quantity'] ?></span></span>
-                                <span class="font-medium">$<?= number_format($item['price'], 2) ?></span>
-                            </li>
-                        <?php endforeach; ?>
-                    </ul>
-                </div>
-                
-                <div class="flex justify-between items-center mt-4 pt-2">
-                    <span class="text-gray-600 text-sm truncate max-w-xs" title="<?= htmlspecialchars($order['shipping_address']) ?>"><span class="font-semibold">Ship to:</span> <?= htmlspecialchars($order['shipping_address']) ?></span>
-                    <span class="font-extrabold text-2xl text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600">$<?= number_format($order['total_amount'], 2) ?></span>
+                <div class="flex items-center gap-4">
+                    <?= status_badge($status) ?>
+                    <span class="font-semibold text-stone-900"><?= money($order['total_cents']) ?></span>
                 </div>
             </div>
-            <?php endforeach; ?>
-        </div>
-    <?php endif; ?>
+            <div class="mt-4 flex items-center gap-2">
+                <?php foreach (array_slice($items, 0, 6) as $item): ?>
+                    <img src="<?= e(image_url($item['image_path'])) ?>" alt="<?= e($item['product_name']) ?>" title="<?= e($item['product_name']) ?>" class="h-14 w-14 rounded-lg object-cover ring-1 ring-stone-200">
+                <?php endforeach; ?>
+                <?php if (count($items) > 6): ?><span class="text-sm text-stone-500">+<?= count($items) - 6 ?> more</span><?php endif; ?>
+                <span class="ml-auto hidden items-center gap-1 text-sm font-medium text-brand-700 sm:inline-flex">View details <?= icon('chevron-right', 'h-4 w-4') ?></span>
+            </div>
+        </a>
+    <?php endforeach; ?>
 </div>
+
+<?php pagination($pg); ?>

@@ -1,0 +1,10 @@
+# Runtime data (database and user uploads)
+/data/
+/uploads/*
+!/uploads/.htaccess
+
+# Legacy database from the pre-marketplace version
+giftshop.db
+
+.DS_Store
+Thumbs.db

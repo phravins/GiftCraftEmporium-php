@@ -1,88 +1,43 @@
-/* Base Styles */
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+/* Custom styles that Tailwind utilities don't cover. */
 
-body {
-    font-family: 'Poppins', sans-serif;
-    color: #333;
+summary::-webkit-details-marker {
+    display: none;
 }
 
-.container {
-    max-width: 1200px;
+/* Hide number spinners in the quantity stepper. */
+[data-stepper] input::-webkit-outer-spin-button,
+[data-stepper] input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+[data-stepper] input[type='number'] {
+    -moz-appearance: textfield;
 }
 
-/* Hero Section */
-.hero {
-    background-size: cover;
-    background-position: center;
-    min-height: 400px;
-    display: flex;
-    align-items: center;
+/* Star rating input: radios are in 5..1 order and displayed reversed. */
+.star-input label {
+    color: #d6d3d1;
+    transition: color 0.15s ease, transform 0.15s ease;
+}
+.star-input input:checked ~ label,
+.star-input label:hover,
+.star-input label:hover ~ label {
+    color: #fbbf24;
+}
+.star-input label:hover {
+    transform: scale(1.1);
+}
+.star-input input:focus-visible + label {
+    outline: 2px solid #c46f48;
+    outline-offset: 2px;
+    border-radius: 4px;
 }
 
-/* Category Cards */
-.category-card:hover {
-    transform: translateY(-5px);
-}
-
-/* Product Cards */
-.product-card {
-    transition: all 0.3s ease;
-    border-radius: 0.75rem;
-    overflow: hidden;
-}
-
-.product-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
-}
-
-.product-image {
-    height: 200px;
-    object-fit: cover;
-    width: 100%;
-}
-
-/* Buttons */
-.btn-primary {
-    background-color: #8b5cf6;
-    color: white;
-    transition: all 0.3s ease;
-}
-
-.btn-primary:hover {
-    background-color: #7c3aed;
-    transform: translateY(-2px);
-}
-
-.btn-outline {
-    border: 2px solid #8b5cf6;
-    color: #8b5cf6;
-    transition: all 0.3s ease;
-}
-
-.btn-outline:hover {
-    background-color: #8b5cf6;
-    color: white;
-}
-
-/* Animations */
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-.fade-in {
-    animation: fadeIn 0.6s ease forwards;
-}
-
-/* Responsive Adjustments */
-@media (max-width: 768px) {
-    .hero {
-        min-height: 300px;
-        padding: 2rem;
-    }
-    
-    .hero h1 {
-        font-size: 2rem;
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
     }
 }

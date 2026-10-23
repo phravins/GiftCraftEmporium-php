@@ -1,34 +1,33 @@
 <?php
-$db = Database::getConnection();
-$products = $db->query("SELECT * FROM products")->fetchAll();
+$page_title = '3D Gallery';
+$stmt = db()->query("SELECT p.id, p.name, p.price_cents,
+        (SELECT pi.path FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order, pi.id LIMIT 1) AS image_path
+    FROM products p
+    WHERE p.status = 'active' AND EXISTS (SELECT 1 FROM product_images pi WHERE pi.product_id = p.id)
+    ORDER BY p.created_at DESC");
+$products = $stmt->fetchAll();
 ?>
 
-<div class="container mx-auto px-6 py-12">
-    <div class="text-center mb-12">
-        <h1 class="text-4xl font-bold text-gray-800 font-serif mb-4">The Gallery</h1>
-        <p class="text-gray-600 max-w-2xl mx-auto">Explore our collection in its purest form. Click any item to view it
-            in 3D.</p>
-        <div class="w-16 h-1 bg-indigo-600 mx-auto mt-6 rounded-full"></div>
-    </div>
+<div class="mx-auto max-w-2xl text-center">
+    <p class="eyebrow">Gallery</p>
+    <h1 class="page-title mt-2">See every gift up close</h1>
+    <p class="mt-4 text-stone-600">Explore the collection in its purest form. Choose any piece to turn it around in the 3D viewer.</p>
+</div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-        <?php foreach ($products as $product): ?>
-            <a href="index.php?page=visualize&id=<?= $product['id'] ?>"
-                class="group block overflow-hidden rounded-xl shadow-md hover:shadow-xl transition-all duration-500 bg-white">
-                <div class="relative h-64 overflow-hidden">
-                    <img src="<?= htmlspecialchars($product['image_url']) ?>"
-                        alt="<?= htmlspecialchars($product['name']) ?>"
-                        class="w-full h-full object-cover transform group-hover:scale-110 transition duration-700 ease-in-out">
-
-                    <div
-                        class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300 flex items-center justify-center">
-                        <span
-                            class="opacity-0 group-hover:opacity-100 bg-white text-gray-900 px-6 py-2 rounded-full font-bold transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 shadow-lg">
-                            Visualise 3D
-                        </span>
-                    </div>
-                </div>
-            </a>
-        <?php endforeach; ?>
-    </div>
+<div class="mt-12">
+    <?php if (!$products): ?>
+        <?php empty_state('cube', 'The gallery is empty for now', 'Products with photos will appear here as soon as sellers list them.'); ?>
+    <?php else: ?>
+        <div class="columns-2 gap-4 sm:columns-3 lg:columns-4 [&>*]:mb-4">
+            <?php foreach ($products as $product): ?>
+                <a href="<?= e(url('visualize', ['id' => $product['id']])) ?>" class="group relative block break-inside-avoid overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-stone-200">
+                    <img src="<?= e($product['image_path']) ?>" alt="<?= e($product['name']) ?>" loading="lazy" class="w-full transition duration-700 group-hover:scale-105">
+                    <span class="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-stone-900/70 via-transparent to-transparent p-4 opacity-0 transition group-hover:opacity-100">
+                        <span class="text-sm font-semibold text-white"><?= e($product['name']) ?></span>
+                        <span class="mt-1 inline-flex items-center gap-1.5 text-xs text-white/80"><?= icon('cube', 'h-4 w-4') ?> View in 3D</span>
+                    </span>
+                </a>
+            <?php endforeach; ?>
+        </div>
+    <?php endif; ?>
 </div>

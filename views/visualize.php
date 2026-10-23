@@ -1,105 +1,92 @@
 <?php
-$db = Database::getConnection();
+$page_title = '3D Visualizer';
+$full_bleed = true;
 
-// Default to first product if no ID provided
-$product_id = $_GET['id'] ?? null;
-if ($product_id) {
-    $stmt = $db->prepare("SELECT * FROM products WHERE id = ?");
-    $stmt->execute([$product_id]);
-    $product = $stmt->fetch();
-} else {
-    // Fallback: Get the first product
-    $product = $db->query("SELECT * FROM products LIMIT 1")->fetch();
+$all_products = db()->query("SELECT p.id, p.name, p.price_cents,
+        (SELECT pi.path FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order, pi.id LIMIT 1) AS image_path
+    FROM products p
+    WHERE p.status = 'active' AND EXISTS (SELECT 1 FROM product_images pi WHERE pi.product_id = p.id)
+    ORDER BY p.created_at DESC LIMIT 60")->fetchAll();
+
+// Default to the newest product when no (valid) id is given.
+$product = $all_products[0] ?? null;
+foreach ($all_products as $candidate) {
+    if ((int) $candidate['id'] === query_int('id')) {
+        $product = $candidate;
+    }
 }
-
-$all_products = $db->query("SELECT * FROM products")->fetchAll();
 ?>
 
-<div class="flex h-[calc(100vh-64px)] bg-gray-100 overflow-hidden">
+<?php if (!$product): ?>
+    <div class="mx-auto max-w-3xl px-4 py-16">
+        <?php empty_state('cube', 'Nothing to visualise yet', 'Once sellers add products with photos, you can explore them in 3D here.',
+            '<a href="' . e(url('shop')) . '" class="btn btn-outline">Browse the shop</a>'); ?>
+    </div>
+<?php else: ?>
+<div class="flex flex-col-reverse bg-stone-100 lg:h-[calc(100vh-7.5rem)] lg:flex-row">
     <!-- Sidebar Controls -->
-    <div class="w-80 bg-white shadow-xl z-10 flex flex-col h-full overflow-y-auto">
-        <div class="p-6 border-b border-gray-100">
-            <h2 class="text-2xl font-bold text-gray-800 font-serif">3D Visualizer</h2>
-            <p class="text-gray-500 text-sm mt-1">Customize your view</p>
+    <div class="z-10 flex w-full flex-col bg-white shadow-xl lg:h-full lg:w-80 lg:overflow-y-auto">
+        <div class="border-b border-stone-100 p-6">
+            <h1 class="font-display text-2xl font-semibold text-stone-900">3D Visualizer</h1>
+            <p class="mt-1 text-sm text-stone-500">Drag to rotate · Scroll to zoom</p>
         </div>
 
-        <div class="p-6 space-y-8 flex-grow">
-            <!-- Product Info -->
+        <div class="flex-grow space-y-8 p-6">
             <div>
-                <h3 class="font-bold text-gray-900 mb-2">Selected Item</h3>
-                <div class="bg-gray-50 rounded-lg p-3 flex items-center shadow-inner">
-                    <img src="<?= htmlspecialchars($product['image_url']) ?>"
-                        class="w-12 h-12 rounded object-cover mr-3 bg-white shadow-sm">
-                    <div>
-                        <p class="font-medium text-sm text-gray-800 line-clamp-1">
-                            <?= htmlspecialchars($product['name']) ?>
-                        </p>
-                        <p class="text-xs text-indigo-600 font-bold">$
-                            <?= number_format($product['price'], 2) ?>
-                        </p>
+                <h3 class="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">Selected item</h3>
+                <div class="flex items-center rounded-xl bg-stone-50 p-3">
+                    <img src="<?= e($product['image_path']) ?>" alt="" class="mr-3 h-12 w-12 rounded-lg bg-white object-cover shadow-sm">
+                    <div class="min-w-0">
+                        <p class="line-clamp-1 text-sm font-medium text-stone-800"><?= e($product['name']) ?></p>
+                        <p class="text-xs font-semibold text-brand-700"><?= money($product['price_cents']) ?></p>
                     </div>
                 </div>
             </div>
 
-            <!-- Controls -->
             <div>
-                <h3 class="font-bold text-gray-900 mb-4 text-sm uppercase tracking-wide">Environment</h3>
-
+                <h3 class="mb-4 text-xs font-semibold uppercase tracking-wide text-stone-500">Environment</h3>
                 <div class="space-y-4">
                     <div>
-                        <label class="block text-xs font-semibold text-gray-500 mb-2">Background Color</label>
+                        <label class="mb-2 block text-xs font-medium text-stone-500">Background colour</label>
                         <div class="flex space-x-2">
-                            <button onclick="changeBg('#f3f4f6')"
-                                class="w-8 h-8 rounded-full bg-gray-100 border-2 border-transparent hover:border-indigo-500 focus:border-indigo-500 outline-none transition"></button>
-                            <button onclick="changeBg('#1c1917')"
-                                class="w-8 h-8 rounded-full bg-stone-900 border-2 border-transparent hover:border-indigo-500 focus:border-indigo-500 outline-none transition"></button>
-                            <button onclick="changeBg('#fff7ed')"
-                                class="w-8 h-8 rounded-full bg-orange-50 border-2 border-transparent hover:border-indigo-500 focus:border-indigo-500 outline-none transition"></button>
-                            <button onclick="changeBg('#e0e7ff')"
-                                class="w-8 h-8 rounded-full bg-indigo-50 border-2 border-transparent hover:border-indigo-500 focus:border-indigo-500 outline-none transition"></button>
+                            <?php foreach (['#f5f5f4' => 'bg-stone-100', '#1c1917' => 'bg-stone-900', '#faf7f2' => 'bg-cream', '#f6e8de' => 'bg-brand-100'] as $hex => $class): ?>
+                                <button type="button" onclick="changeBg('<?= $hex ?>')" aria-label="Background <?= $hex ?>"
+                                    class="h-8 w-8 rounded-full border-2 border-stone-200 <?= $class ?> outline-none transition hover:border-brand-500 focus:border-brand-500"></button>
+                            <?php endforeach; ?>
                         </div>
                     </div>
-
-                    <div class="flex items-center justify-between">
-                        <span class="text-sm font-medium text-gray-700">Auto Rotate</span>
-                        <label class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" id="autoRotateCheck" checked class="sr-only peer"
-                                onchange="toggleAutoRotate()">
-                            <div
-                                class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600">
-                            </div>
-                        </label>
-                    </div>
-
-
+                    <label class="flex cursor-pointer items-center justify-between">
+                        <span class="text-sm font-medium text-stone-700">Auto rotate</span>
+                        <span class="relative inline-flex items-center">
+                            <input type="checkbox" id="autoRotateCheck" checked class="peer sr-only" onchange="toggleAutoRotate()">
+                            <span class="h-6 w-11 rounded-full bg-stone-200 transition after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-stone-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-brand-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus-visible:ring-4 peer-focus-visible:ring-brand-200"></span>
+                        </span>
+                    </label>
                 </div>
             </div>
 
-            <!-- Other Items -->
             <div>
-                <h3 class="font-bold text-gray-900 mb-4 text-sm uppercase tracking-wide">Select Item</h3>
-                <div class="grid grid-cols-4 gap-2">
+                <h3 class="mb-4 text-xs font-semibold uppercase tracking-wide text-stone-500">Select item</h3>
+                <div class="grid grid-cols-5 gap-2 lg:grid-cols-4">
                     <?php foreach ($all_products as $p): ?>
-                        <a href="index.php?page=visualize&id=<?= $p['id'] ?>"
-                            class="block relative group aspect-square rounded-md overflow-hidden border-2 <?= ($p['id'] == $product['id']) ? 'border-indigo-600' : 'border-transparent hover:border-gray-300' ?> transition">
-                            <img src="<?= htmlspecialchars($p['image_url']) ?>" class="w-full h-full object-cover">
+                        <a href="<?= e(url('visualize', ['id' => $p['id']])) ?>" title="<?= e($p['name']) ?>"
+                            class="relative block aspect-square overflow-hidden rounded-lg border-2 <?= ((int) $p['id'] === (int) $product['id']) ? 'border-brand-600' : 'border-transparent hover:border-stone-300' ?> transition">
+                            <img src="<?= e($p['image_path']) ?>" alt="<?= e($p['name']) ?>" class="h-full w-full object-cover">
                         </a>
                     <?php endforeach; ?>
                 </div>
             </div>
         </div>
 
-        <div class="p-6 bg-gray-50 border-t border-gray-100">
-            <a href="index.php?page=product&id=<?= $product['id'] ?>"
-                class="block w-full bg-stone-900 text-white text-center py-3 rounded-lg font-bold hover:bg-stone-800 transition shadow-lg">View
-                Details</a>
+        <div class="border-t border-stone-100 bg-stone-50 p-6">
+            <a href="<?= e(url('product', ['id' => $product['id']])) ?>" class="btn btn-dark w-full">View details</a>
         </div>
     </div>
 
     <!-- 3D Canvas -->
-    <div id="canvas-container" class="flex-grow relative bg-gray-100 cursor-move">
-        <div class="absolute top-6 right-6 z-10 bg-white/80 backdrop-blur-sm px-4 py-2 rounded-full shadow-sm">
-            <p class="text-xs font-semibold text-gray-600">Interactive 3D View • Drag to Rotate • Scroll to Zoom</p>
+    <div id="canvas-container" class="relative h-[60vh] flex-grow cursor-move bg-stone-100 lg:h-auto">
+        <div class="absolute right-6 top-6 z-10 rounded-full bg-white/80 px-4 py-2 shadow-sm backdrop-blur-sm">
+            <p class="text-xs font-semibold text-stone-600">Interactive 3D view</p>
         </div>
     </div>
 </div>
@@ -109,16 +96,17 @@ $all_products = $db->query("SELECT * FROM products")->fetchAll();
 
 <script>
     const container = document.getElementById('canvas-container');
-    const imageUrl = "<?= htmlspecialchars($product['image_url']) ?>";
+    const imageUrl = <?= json_encode($product['image_path'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 
     // Scene setup
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xf3f4f6); // Default background matching gray-100
+    scene.background = new THREE.Color(0xf5f5f4);
 
     const camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
     camera.position.z = 2.5;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.shadowMap.enabled = true;
     container.appendChild(renderer.domElement);
@@ -131,58 +119,31 @@ $all_products = $db->query("SELECT * FROM products")->fetchAll();
     controls.autoRotateSpeed = 2.0;
 
     // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
-    scene.add(ambientLight);
-
+    scene.add(new THREE.AmbientLight(0xffffff, 0.8));
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
     directionalLight.position.set(5, 5, 5);
     directionalLight.castShadow = true;
     scene.add(directionalLight);
-
     const pointLight = new THREE.PointLight(0xffffff, 0.5);
     pointLight.position.set(-5, -5, 5);
     scene.add(pointLight);
 
-    // Gift Group (Now just the 2D Plane)
     const giftGroup = new THREE.Group();
     scene.add(giftGroup);
 
-    const textureLoader = new THREE.TextureLoader();
-    textureLoader.load(imageUrl, function (texture) {
+    new THREE.TextureLoader().load(imageUrl, function (texture) {
+        // Fit the image within a 2x2 area, keeping its aspect ratio.
+        const aspect = texture.image.width / texture.image.height;
+        const planeWidth = aspect >= 1 ? 2 : 2 * aspect;
+        const planeHeight = aspect >= 1 ? 2 / aspect : 2;
 
-        // Get image dimensions
-        const image = texture.image;
-        const width = image.width;
-        const height = image.height;
-
-        // Calculate aspect ratio
-        const aspect = width / height;
-
-        // Base size logic: Fit within a 2x2 area roughly
-        let planeWidth, planeHeight;
-
-        if (aspect >= 1) {
-            // Landscape or Square
-            planeWidth = 2;
-            planeHeight = 2 / aspect;
-        } else {
-            // Portrait
-            planeHeight = 2;
-            planeWidth = 2 * aspect;
-        }
-
-        // Geometry: Simple Plane for the cutout
-        const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
-
-        // Access texture data to guess aspect if needed, but we did that above.
-        // Shader Material for Chroma Key (removing white background)
+        // Chroma-key shader: makes a white studio background transparent.
         const material = new THREE.ShaderMaterial({
             uniforms: {
                 textureMap: { value: texture },
-                color: { value: new THREE.Color(0xffffff) }, // Base transform color if needed
-                keyColor: { value: new THREE.Color(0xffffff) }, // Color to remove (White)
-                similarity: { value: 0.15 }, // Threshold
-                smoothness: { value: 0.05 }  // Edge smoothing
+                keyColor: { value: new THREE.Color(0xffffff) },
+                similarity: { value: 0.15 },
+                smoothness: { value: 0.05 }
             },
             vertexShader: `
                 varying vec2 vUv;
@@ -200,17 +161,9 @@ $all_products = $db->query("SELECT * FROM products")->fetchAll();
 
                 void main() {
                     vec4 texColor = texture2D(textureMap, vUv);
-                    
-                    // Calculate difference from key color
                     float diff = length(texColor.rgb - keyColor);
-                    
-                    // Alpha based on difference
                     float alpha = smoothstep(similarity, similarity + smoothness, diff);
-                    
-                    // Output color with calculated alpha
                     gl_FragColor = vec4(texColor.rgb, texColor.a * alpha);
-                    
-                    // Simple alpha discard for depth sorting
                     if (alpha < 0.1) discard;
                 }
             `,
@@ -218,24 +171,20 @@ $all_products = $db->query("SELECT * FROM products")->fetchAll();
             transparent: true
         });
 
-        const cutout = new THREE.Mesh(geometry, material);
+        const cutout = new THREE.Mesh(new THREE.PlaneGeometry(planeWidth, planeHeight), material);
         cutout.castShadow = true;
         cutout.receiveShadow = true;
-
         giftGroup.add(cutout);
-
-    }, undefined, function (err) {
-        console.error('An error happened with the texture.');
+    }, undefined, function () {
+        console.error('The product image could not be loaded.');
     });
 
-    // Handle Window Resize
     window.addEventListener('resize', () => {
         camera.aspect = container.clientWidth / container.clientHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(container.clientWidth, container.clientHeight);
     });
 
-    // Animation Loop
     function animate() {
         requestAnimationFrame(animate);
         controls.update();
@@ -243,7 +192,6 @@ $all_products = $db->query("SELECT * FROM products")->fetchAll();
     }
     animate();
 
-    // UI Functions
     function changeBg(color) {
         scene.background = new THREE.Color(color);
     }
@@ -252,3 +200,4 @@ $all_products = $db->query("SELECT * FROM products")->fetchAll();
         controls.autoRotate = document.getElementById('autoRotateCheck').checked;
     }
 </script>
+<?php endif; ?>
